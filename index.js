@@ -1,10 +1,12 @@
 require('dotenv').config();
+
 const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { GoogleAIFileManager } = require("@google/generative-ai/server");
 const { marked } = require('marked'); 
+const mongoose = require('mongoose');
 
 const app = express();
 
@@ -17,6 +19,19 @@ const upload = multer({ dest: '/tmp/' });
 // Initialize Google AI tools
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY);
+// --- DATABASE CONNECTION ---
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => console.log('✅ Successfully connected to MongoDB Atlas!'))
+  .catch((err) => console.error('❌ MongoDB Connection Error:', err));
+
+  // --- NEW: DATABASE BLUEPRINT (SCHEMA) ---
+const evaluationSchema = new mongoose.Schema({
+    targetRole: String,
+    aiResponse: String,     // We will save the HTML evaluation here
+    evaluatedAt: { type: Date, default: Date.now } // Automatically stamps the date/time
+});
+
+const Evaluation = mongoose.model('Evaluation', evaluationSchema);
 
 //  ROUTE 1: HOME PAGE WITH LOADING STATE 
 app.get('/', (req, res) => {
@@ -130,6 +145,22 @@ app.post('/upload', upload.single('resume'), async (req, res) => {
         }
 
         const cleanHTML = marked.parse(aiResponse);
+        
+
+        // --- NEW: SAVE TO DATABASE ---
+        try {
+            const newEval = new Evaluation({
+                targetRole: targetRole,
+                aiResponse: cleanHTML
+            });
+            await newEval.save();
+            console.log(" Evaluation successfully saved to the cloud database!");
+        } catch (dbError) {
+            console.error("Warning: Failed to save to database, but continuing...", dbError);
+        }
+
+        // 6. Send to browser
+        
 
         res.send(`
             <!DOCTYPE html>
