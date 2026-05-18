@@ -15,16 +15,36 @@ const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY);
 
 app.get('/', (req, res) => {
     res.send(`
-        <div style="font-family: sans-serif; max-width: 600px; margin: 40px auto;">
-            <h2>AI Resume Evaluator</h2>
-            <form action="/upload" method="POST" enctype="multipart/form-data" style="display: flex; flex-direction: column; gap: 15px;">
-                <label><strong>Target Role:</strong></label>
-                <input type="text" name="role" placeholder="e.g., SDE, Data Analyst" required style="padding: 8px;" />
-                <label><strong>Upload Resume (PDF):</strong></label>
-                <input type="file" name="resume" accept=".pdf" required />
-                <button type="submit" style="padding: 10px; background: #007bff; color: white; border: none; cursor: pointer;">Evaluate Resume</button>
-            </form>
-        </div>
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>AI Resume Evaluator</title>
+            <style>
+                body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+                .container { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 450px; }
+                h2 { color: #2c3e50; margin-top: 0; margin-bottom: 25px; text-align: center; font-size: 28px; }
+                label { font-weight: 600; color: #34495e; margin-bottom: 8px; display: block; font-size: 14px; }
+                input[type="text"], input[type="file"] { width: 100%; padding: 12px; margin-bottom: 20px; border: 1px solid #ccd1d9; border-radius: 6px; box-sizing: border-box; font-size: 14px; transition: border-color 0.3s; }
+                input[type="text"]:focus { border-color: #007bff; outline: none; }
+                button { width: 100%; padding: 14px; background: #007bff; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.3s ease; box-shadow: 0 4px 6px rgba(0, 123, 255, 0.2); }
+                button:hover { background: #0056b3; transform: translateY(-1px); }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h2>AI Resume Evaluator</h2>
+                <form action="/upload" method="POST" enctype="multipart/form-data">
+                    <label>Target Role:</label>
+                    <input type="text" name="role" placeholder="e.g., SDE, Data Analyst" required />
+                    <label>Upload Resume (PDF):</label>
+                    <input type="file" name="resume" accept=".pdf" required />
+                    <button type="submit">Evaluate Resume</button>
+                </form>
+            </div>
+        </body>
+        </html>
     `);
 });
 
@@ -96,15 +116,40 @@ app.post('/upload', upload.single('resume'), async (req, res) => {
         const cleanHTML = marked.parse(aiResponse);
 
         //  Send to browser
+        // 6. Send to browser (Replaces your current res.send)
         res.send(`
-            <div style="font-family: sans-serif; max-width: 800px; margin: 40px auto; line-height: 1.6;">
-                <h2 style="color: #333;">Evaluation for: ${targetRole}</h2>
-                <div style="background: #f9f9fb; padding: 30px; border-radius: 12px; border: 1px solid #e1e4e8;">
-                    ${cleanHTML}
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Evaluation Results</title>
+                <style>
+                    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; padding: 40px 20px; color: #333; margin: 0; }
+                    .container { background: white; padding: 50px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); max-width: 800px; margin: 0 auto; }
+                    h2 { color: #2c3e50; border-bottom: 3px solid #007bff; padding-bottom: 15px; margin-top: 0; font-size: 28px; }
+                    .result-box { background: #f8f9fa; padding: 30px; border-radius: 8px; border: 1px solid #e9ecef; margin-top: 25px; line-height: 1.7; font-size: 16px; }
+                    .result-box h3 { color: #007bff; margin-top: 0; font-size: 22px; }
+                    .result-box ul { padding-left: 20px; }
+                    .result-box li { margin-bottom: 10px; }
+                    .result-box strong { color: #2c3e50; }
+                    .btn-container { text-align: center; margin-top: 40px; }
+                    .back-btn { display: inline-block; padding: 14px 28px; background: #28a745; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; transition: all 0.3s ease; box-shadow: 0 4px 6px rgba(40, 167, 69, 0.2); }
+                    .back-btn:hover { background: #218838; transform: translateY(-1px); }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h2>Evaluation for: <span style="color: #007bff;">${targetRole}</span></h2>
+                    <div class="result-box">
+                        ${cleanHTML}
+                    </div>
+                    <div class="btn-container">
+                        <a href="/" class="back-btn">← Evaluate Another Resume</a>
+                    </div>
                 </div>
-                <br>
-                <a href="/" style="color: #007bff; text-decoration: none; font-weight: bold;">← Evaluate Another Resume</a>
-            </div>
+            </body>
+            </html>
         `);
 
     } catch (error) {
