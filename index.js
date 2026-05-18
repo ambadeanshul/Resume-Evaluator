@@ -158,6 +158,12 @@ app.post('/upload', upload.single('resume'), async (req, res) => {
     }
 });
 
-app.listen(3000, () => {
-    console.log('Server is running on http://localhost:3000');
-});
+// Export the app for serverless deployment (Vercel)
+module.exports = app;
+
+// Only listen locally if we are NOT in a production environment
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(3000, () => {
+        console.log('Server is running locally on http://localhost:3000');
+    });
+}
