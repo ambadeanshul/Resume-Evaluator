@@ -159,9 +159,9 @@ app.post('/upload', upload.single('resume'), async (req, res) => {
             console.error("Warning: Failed to save to database, but continuing...", dbError);
         }
 
-        // 6. Send to browser
         
-
+        
+// 6. Send to browser (Main Results Page)
         res.send(`
             <!DOCTYPE html>
             <html lang="en">
@@ -182,6 +182,14 @@ app.post('/upload', upload.single('resume'), async (req, res) => {
                     .back-btn:hover { background: #218838; transform: translateY(-1px); }
                     .spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto; }
                     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+                    
+                    /* --- NEW: PDF EXPORT STYLES --- */
+                    @media print {
+                        body { background: white; padding: 0; }
+                        .container { box-shadow: none; border: none; padding: 0; width: 100%; max-width: 100%; }
+                        .btn-container, #generateBtn, #coverLetterLoading, .back-btn { display: none !important; }
+                        #coverLetterSection { border-top: none; }
+                    }
                 </style>
             </head>
             <body>
@@ -206,6 +214,9 @@ app.post('/upload', upload.single('resume'), async (req, res) => {
                     </div>
 
                     <div class="btn-container">
+                        <button onclick="window.print()" style="display: inline-block; padding: 14px 28px; background: #dc3545; color: white; border: none; border-radius: 6px; font-weight: bold; font-size: 16px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 6px rgba(220, 53, 69, 0.2); margin-right: 15px;">
+                            📄 Export as PDF
+                        </button>
                         <a href="/" class="back-btn">← Evaluate Another Resume</a>
                     </div>
                 </div>
@@ -256,6 +267,9 @@ app.post('/upload', upload.single('resume'), async (req, res) => {
             </html>
         `);
 
+                        
+             
+
     } catch (error) {
         console.error("Critical error during evaluation:", error);
         
@@ -273,6 +287,7 @@ app.post('/upload', upload.single('resume'), async (req, res) => {
                     h2 { color: #dc3545; }
                     a { display: inline-block; margin-top: 20px; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 6px; }
                 </style>
+                
             </head>
             <body>
                 <div class="container">
