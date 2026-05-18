@@ -1,12 +1,11 @@
 require('dotenv').config();
-
 const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { GoogleAIFileManager } = require("@google/generative-ai/server");
 const { marked } = require('marked'); 
-const mongoose = require('mongoose');
+const mongoose = require('mongoose'); 
 
 const app = express();
 
@@ -19,21 +18,21 @@ const upload = multer({ dest: '/tmp/' });
 // Initialize Google AI tools
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY);
+
 // --- DATABASE CONNECTION ---
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('✅ Successfully connected to MongoDB Atlas!'))
   .catch((err) => console.error('❌ MongoDB Connection Error:', err));
 
-  // --- NEW: DATABASE BLUEPRINT (SCHEMA) ---
+// --- DATABASE BLUEPRINT (SCHEMA) ---
 const evaluationSchema = new mongoose.Schema({
     targetRole: String,
-    aiResponse: String,     // We will save the HTML evaluation here
-    evaluatedAt: { type: Date, default: Date.now } // Automatically stamps the date/time
+    aiResponse: String,     
+    evaluatedAt: { type: Date, default: Date.now } 
 });
-
 const Evaluation = mongoose.model('Evaluation', evaluationSchema);
 
-//  ROUTE 1: HOME PAGE WITH LOADING STATE 
+// --- ROUTE 1: HOME PAGE WITH LOADING STATE ---
 app.get('/', (req, res) => {
     res.send(`
         <!DOCTYPE html>
@@ -68,7 +67,7 @@ app.get('/', (req, res) => {
 
                 <div id="loading" style="display: none; text-align: center; margin-top: 20px;">
                     <div class="spinner"></div>
-                    <p style="font-weight: bold; color: #007bff; font-size: 16px; margin-top: 15px;">Scanning for core competencies...</p>
+                    <p style="font-weight: bold; color: #007bff; font-size: 16px; margin-top: 15px;"> Scanning core competencies...</p>
                     <p style="color: #666; font-size: 14px;">This usually takes about 10 seconds.</p>
                 </div>
             </div>
@@ -101,20 +100,27 @@ app.post('/upload', upload.single('resume'), async (req, res) => {
         });
         console.log(`File uploaded successfully: ${uploadResponse.file.uri}`);
         
-        fs.unlinkSync(filePath); // Clean up safe temporary file
+        fs.unlinkSync(filePath); 
+
+        // BALANCED PROMPT & DATE INJECTION
+        const currentDate = new Date().toDateString(); 
 
         const prompt = `
-        Act as an expert technical recruiter. I have attached a candidate's resume as a PDF. 
-        Target Role: ${targetRole}
+        Act as an expert Technical Recruiter and Career Coach. 
+        Today's date is ${currentDate}. Keep this in mind when reviewing project and education dates so you do not flag recent or current events as "future" dates.
+
+        I have attached a candidate's resume as a PDF. Target Role: ${targetRole}
         
-        Please evaluate the attached resume for this role and format your response exactly like this:
+        Please provide a balanced, realistic, and highly constructive evaluation. Be strict about missing technical requirements for the ATS, but maintain an encouraging, professional, and helpful tone.
+        
+        Format your response exactly like this:
         
         ### ATS Match Score: [Insert Score Here]/100
         
-        **1. Summary:** [A short summary of whether this candidate is a good fit]
+        **1. Critical Evaluation:** [A balanced assessment of the candidate's strengths and the specific areas where the resume falls short for this role.]
         
-        **2. Missing Keywords & Skills:**
-        [A bulleted list of critical skills, keywords, or experiences missing from the resume for this specific role]
+        **2. Key Areas for Improvement:**
+        [A bulleted list of missing technical skills, formatting issues, or areas where the candidate needs to show more measurable impact.]
         `;
 
         const fileData = {
@@ -126,17 +132,23 @@ app.post('/upload', upload.single('resume'), async (req, res) => {
 
         let aiResponse = "";
 
-        // Fallback Routing Load Balancer
+        // FALLBACK ROUTING WITH TEMPERATURE 0
         try {
             console.log("Attempting primary model (2.5-flash)...");
-            const primaryModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }); 
+            const primaryModel = genAI.getGenerativeModel({ 
+                model: "gemini-2.5-flash",
+                generationConfig: { temperature: 0 } 
+            }); 
             const result = await primaryModel.generateContent([prompt, fileData]);
             aiResponse = result.response.text();
             
         } catch (apiError) {
             if (apiError.status === 503 || apiError.status === 429 || apiError.message?.includes("503") || apiError.message?.includes("429")) {
                 console.log("Traffic jam on 2.5-flash! Rerouting to backup model (2.0-flash)...");
-                const backupModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }); 
+                const backupModel = genAI.getGenerativeModel({ 
+                    model: "gemini-2.0-flash",
+                    generationConfig: { temperature: 0 }
+                }); 
                 const backupResult = await backupModel.generateContent([prompt, fileData]);
                 aiResponse = backupResult.response.text();
             } else {
@@ -145,23 +157,20 @@ app.post('/upload', upload.single('resume'), async (req, res) => {
         }
 
         const cleanHTML = marked.parse(aiResponse);
-        
 
-        // --- NEW: SAVE TO DATABASE ---
+        // SAVE TO DATABASE
         try {
             const newEval = new Evaluation({
                 targetRole: targetRole,
                 aiResponse: cleanHTML
             });
             await newEval.save();
-            console.log(" Evaluation successfully saved to the cloud database!");
+            console.log("💾 Evaluation successfully saved to the cloud database!");
         } catch (dbError) {
             console.error("Warning: Failed to save to database, but continuing...", dbError);
         }
 
-        
-        
-// 6. Send to browser (Main Results Page)
+        // Send to browser with html2pdf integration
         res.send(`
             <!DOCTYPE html>
             <html lang="en">
@@ -169,6 +178,7 @@ app.post('/upload', upload.single('resume'), async (req, res) => {
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>Evaluation Results</title>
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
                 <style>
                     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; padding: 40px 20px; color: #333; margin: 0; }
                     .container { background: white; padding: 50px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); max-width: 800px; margin: 0 auto; }
@@ -178,22 +188,17 @@ app.post('/upload', upload.single('resume'), async (req, res) => {
                     .result-box ul { padding-left: 20px; }
                     .result-box li { margin-bottom: 10px; }
                     .btn-container { text-align: center; margin-top: 40px; }
-                    .back-btn { display: inline-block; padding: 14px 28px; background: #28a745; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; transition: all 0.3s ease; box-shadow: 0 4px 6px rgba(40, 167, 69, 0.2); }
-                    .back-btn:hover { background: #218838; transform: translateY(-1px); }
+                    
+                    /* UX Upgrade: Sleek gray back button so the Green Download button stands out */
+                    .back-btn { display: inline-block; padding: 14px 28px; background: #6c757d; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; transition: all 0.3s ease; box-shadow: 0 4px 6px rgba(108, 117, 125, 0.2); }
+                    .back-btn:hover { background: #5a6268; transform: translateY(-1px); }
+                    
                     .spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto; }
                     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-                    
-                    /* --- NEW: PDF EXPORT STYLES --- */
-                    @media print {
-                        body { background: white; padding: 0; }
-                        .container { box-shadow: none; border: none; padding: 0; width: 100%; max-width: 100%; }
-                        .btn-container, #generateBtn, #coverLetterLoading, .back-btn { display: none !important; }
-                        #coverLetterSection { border-top: none; }
-                    }
                 </style>
             </head>
             <body>
-                <div class="container">
+                <div class="container" id="reportContainer">
                     <h2>Evaluation for: <span style="color: #007bff;">${targetRole}</span></h2>
                     
                     <div class="result-box">
@@ -213,15 +218,39 @@ app.post('/upload', upload.single('resume'), async (req, res) => {
                         <div id="coverLetterResult" class="result-box" style="display: none; text-align: left; margin-top: 20px; border-left: 5px solid #6f42c1;"></div>
                     </div>
 
-                    <div class="btn-container">
-                        <button onclick="window.print()" style="display: inline-block; padding: 14px 28px; background: #dc3545; color: white; border: none; border-radius: 6px; font-weight: bold; font-size: 16px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 6px rgba(220, 53, 69, 0.2); margin-right: 15px;">
-                            📄 Export as PDF
+                    <div class="btn-container" id="actionButtons">
+                        <button onclick="downloadPDF()" style="display: inline-block; padding: 14px 28px; background: #28a745; color: white; border: none; border-radius: 6px; font-weight: bold; font-size: 16px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 6px rgba(40, 167, 69, 0.2); margin-right: 15px;">
+                            ⬇️ Download PDF
                         </button>
                         <a href="/" class="back-btn">← Evaluate Another Resume</a>
                     </div>
                 </div>
 
                 <script>
+                    function downloadPDF() {
+                        const element = document.getElementById('reportContainer');
+                        const buttons = document.getElementById('actionButtons');
+                        const generateBtn = document.getElementById('generateBtn');
+                        
+                        // Hide buttons so they don't show up in the PDF
+                        buttons.style.display = 'none';
+                        if(generateBtn) generateBtn.style.display = 'none';
+
+                        const opt = {
+                            margin:       0.5,
+                            filename:     'Resume_Evaluation_${targetRole.replace(/\s+/g, '_')}.pdf',
+                            image:        { type: 'jpeg', quality: 0.98 },
+                            html2canvas:  { scale: 2 },
+                            jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+                        };
+
+                        // Generate PDF and restore buttons
+                        html2pdf().set(opt).from(element).save().then(() => {
+                            buttons.style.display = 'block';
+                            if(generateBtn) generateBtn.style.display = 'inline-block';
+                        });
+                    }
+
                     async function generateCoverLetter() {
                         const btn = document.getElementById('generateBtn');
                         const loading = document.getElementById('coverLetterLoading');
@@ -267,13 +296,9 @@ app.post('/upload', upload.single('resume'), async (req, res) => {
             </html>
         `);
 
-                        
-             
-
     } catch (error) {
         console.error("Critical error during evaluation:", error);
         
-        // Send a beautiful error page instead of a raw text crash
         res.status(500).send(`
             <!DOCTYPE html>
             <html lang="en">
@@ -287,7 +312,6 @@ app.post('/upload', upload.single('resume'), async (req, res) => {
                     h2 { color: #dc3545; }
                     a { display: inline-block; margin-top: 20px; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 6px; }
                 </style>
-                
             </head>
             <body>
                 <div class="container">
@@ -302,7 +326,7 @@ app.post('/upload', upload.single('resume'), async (req, res) => {
     }
 });
 
-//  ROUTE 3: COVER LETTER AJAX GENERATION 
+// --- ROUTE 3: COVER LETTER AJAX GENERATION ---
 app.post('/generate-letter', async (req, res) => {
     try {
         const { role, fileUri, mimeType } = req.body;
@@ -316,7 +340,6 @@ app.post('/generate-letter', async (req, res) => {
         const fileData = { fileData: { mimeType, fileUri } };
         let aiResponse = "";
 
-        // The Cover Letter Load Balancer
         try {
             console.log("Cover Letter: Attempting primary model (2.5-flash)...");
             const primaryModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }); 
@@ -346,7 +369,6 @@ app.post('/generate-letter', async (req, res) => {
 // Export the app module for Vercel Serverless environment
 module.exports = app;
 
-// Handle local initialization if we aren't in production mode
 if (process.env.NODE_ENV !== 'production') {
     app.listen(3000, () => {
         console.log('Server is running locally on http://localhost:3000');
