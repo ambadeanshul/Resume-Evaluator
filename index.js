@@ -30,19 +30,36 @@ app.get('/', (req, res) => {
                 input[type="text"]:focus { border-color: #007bff; outline: none; }
                 button { width: 100%; padding: 14px; background: #007bff; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.3s ease; box-shadow: 0 4px 6px rgba(0, 123, 255, 0.2); }
                 button:hover { background: #0056b3; transform: translateY(-1px); }
+                /* New loading animation styles */
+                .spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #007bff; animation: spin 1s linear infinite; margin: 0 auto; }
+                @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
             </style>
         </head>
         <body>
             <div class="container">
                 <h2>AI Resume Evaluator</h2>
-                <form action="/upload" method="POST" enctype="multipart/form-data">
+                
+                <form id="uploadForm" action="/upload" method="POST" enctype="multipart/form-data" onsubmit="showLoading()">
                     <label>Target Role:</label>
                     <input type="text" name="role" placeholder="e.g., SDE, Data Analyst" required />
                     <label>Upload Resume (PDF):</label>
                     <input type="file" name="resume" accept=".pdf" required />
-                    <button type="submit">Evaluate Resume</button>
+                    <button type="submit" id="submitBtn">Evaluate Resume</button>
                 </form>
+
+                <div id="loading" style="display: none; text-align: center; margin-top: 20px;">
+                    <div class="spinner"></div>
+                    <p style="font-weight: bold; color: #007bff; font-size: 16px; margin-top: 15px;">Scanning for core competencies...</p>
+                    <p style="color: #666; font-size: 14px;">This usually takes about 10 seconds.</p>
+                </div>
             </div>
+
+            <script>
+                function showLoading() {
+                    document.getElementById('uploadForm').style.display = 'none';
+                    document.getElementById('loading').style.display = 'block';
+                }
+            </script>
         </body>
         </html>
     `);
