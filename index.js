@@ -7,7 +7,7 @@ const { GoogleAIFileManager } = require("@google/generative-ai/server");
 const { marked } = require('marked'); 
 
 const app = express();
-const upload = multer({ dest: 'uploads/' });
+const upload = multer({ dest: '/tmp/' });
 
 // Initialize Google AI tools
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
